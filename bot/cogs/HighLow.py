@@ -5,7 +5,6 @@ import random
 import datetime
 
 class Highlow(commands.Cog):
-
     def __init__(self, bot):
         self.bot = bot
         self.games = {}
@@ -41,10 +40,10 @@ class Highlow(commands.Cog):
             return
         number = random.randint(game["min_number"], game["max_number"])
         if number < 5:
-            game["last_number"] = number # store the number in the game dictionary
+            game["last_number"] = number
             await self.win(ctx, game)
         else:
-            game["last_number"] = number # store the number in the game dictionary
+            game["last_number"] = number
             await self.lose(ctx, game)
 
     @commands.command()
@@ -56,10 +55,10 @@ class Highlow(commands.Cog):
             return
         number = random.randint(game["min_number"], game["max_number"])
         if number > 5:
-            game["last_number"] = number # store the number in the game dictionary
+            game["last_number"] = number
             await self.win(ctx, game)
         else:
-            game["last_number"] = number # store the number in the game dictionary
+            game["last_number"] = number
             await self.lose(ctx, game)
 
     async def win(self, ctx, game):
@@ -124,101 +123,86 @@ class Highlow(commands.Cog):
     @commands.command()
     async def money(self, ctx):
         balance = self.get_balance(ctx.author)
-        await ctx.send(f"You have {balance} money.")
+        await ctx.send(f"You have **{balance}€**.")
 
     @commands.command()
     async def work(self, ctx):
-        last_work_time = None
-        with open("last_work.csv", "r", newline="") as file:
+        user_id = str(ctx.author.id)
+        now = datetime.datetime.now()
+
+        with open("data/last_work.csv", "r") as file:
             reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(ctx.author.id):
-                    last_work_time = datetime.datetime.fromisoformat(row[1])
-                    break
-        
-        time_since_last_work = datetime.datetime.now() - last_work_time if last_work_time else datetime.timedelta(seconds=999999)
-        if time_since_last_work < datetime.timedelta(hours=3):
-            remaining_time = datetime.timedelta(hours=3) - time_since_last_work
-            await ctx.send(f"You will not be able to work at Microsoft support for another {remaining_time.seconds // 3600} hours and {(remaining_time.seconds % 3600) // 60} minutes.")
-            return
+            rows = [row for row in reader]
 
-        self.add_balance(ctx.author, 100)
+        index = -1
+        for i, row in enumerate(rows):
+            if row[0] == user_id:
+                index = i
+                break
 
-        # Write the new last work time to last_work.csv file
-        with open("last_work.csv", "a", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow([ctx.author.id, datetime.datetime.now().isoformat()])
+        if index != -1:
+            last_work_time = datetime.datetime.fromisoformat(rows[index][1])
+            time_since_last_work = now - last_work_time
 
-        await ctx.send("You successfully scammed 3 people with the Microsoft call center and earned 100€.")
+            if time_since_last_work < datetime.timedelta(hours=3):
+                time_until_next_work = datetime.timedelta(hours=3) - time_since_last_work
+                hours = time_until_next_work.seconds // 3600
+                minutes = (time_until_next_work.seconds // 60) % 60
+                await ctx.send(f"You will not be able to work at Microsoft support for another **{hours}** hours and **{minutes}** minutes.")
+            else:
+                self.add_balance(ctx.author, 100)
+                rows[index][1] = now.isoformat()
+                with open("data/last_work.csv", "w", newline="") as file:
+                    writer = csv.writer(file)
+                    writer.writerows(rows)
+                await ctx.send("You successfully scammed 3 people with the Microsoft call center and earned **100€**.")
+        else:
+            self.add_balance(ctx.author, 100)
+            with open("data/last_work.csv", "a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow([user_id, now.isoformat()])
+            await ctx.send("You successfully scammed 3 people with the Microsoft call center and earned **100€**.")
 
     @commands.command()
     async def daily(self, ctx):
-        last_daily_time = None
-        with open("last_daily.csv", "r", newline="") as file:
+        user_id = str(ctx.author.id)
+        now = datetime.datetime.now()
+
+        with open("data/last_daily.csv", "r") as file:
             reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(ctx.author.id):
-                    last_daily_time = datetime.datetime.fromisoformat(row[1])
-                    break
-        
-        time_since_last_daily = datetime.datetime.now() - last_daily_time if last_daily_time else datetime.timedelta(seconds=999999)
-        if time_since_last_daily < datetime.timedelta(hours=24):
-            remaining_time = datetime.timedelta(hours=24) - time_since_last_daily
-            await ctx.send(f"Your daily bonus is ready in {remaining_time.seconds // 3600} hours and {(remaining_time.seconds % 3600) // 60} minutes.")
-            return
+            rows = [row for row in reader]
 
-        self.add_balance(ctx.author, 1000)
+        index = -1
+        for i, row in enumerate(rows):
+            if row[0] == user_id:
+                index = i
+                break
 
-        with open("last_daily.csv", "a", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow([ctx.author.id, datetime.datetime.now().isoformat()])
+        if index != -1:
+            last_daily_time = datetime.datetime.fromisoformat(rows[index][1])
+            time_since_last_daily = now - last_daily_time
 
-        await ctx.send("They were successfully transferred 1.000€ to their account")
-
-    def get_last_daily_time(self, user):
-        with open("last_daily.csv", "r", newline="") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(user.id):
-                    return float(row[1])
-        return None
-
-    def set_last_daily_time(self, user, time):
-        times = []
-        with open("last_daily.csv", "r", newline="") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(user.id):
-                    times.append([user.id, time])
-                else:
-                    times.append(row)
-        with open("last_daily.csv", "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerows(times)
-
-    def get_last_work_time(self, user):
-        with open("last_work.csv", "r", newline="") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(user.id):
-                    return float(row[1])
-        return None
-
-    def set_last_work_time(self, user, time):
-        times = []
-        with open("last_work.csv", "r", newline="") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row[0] == str(user.id):
-                    times.append([user.id, time])
-                else:
-                    times.append(row)
-        with open("last_work.csv", "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerows(times)
+            if time_since_last_daily < datetime.timedelta(hours=24):
+                time_until_next_daily = datetime.timedelta(hours=24) - time_since_last_daily
+                hours = time_until_next_daily.seconds // 3600
+                minutes = (time_until_next_daily.seconds // 60) % 60
+                await ctx.send(f"Your daily bonus is ready in **{hours}** hours and **{minutes}** minutes.")
+            else:
+                self.add_balance(ctx.author, 1000)
+                rows[index][1] = now.isoformat()
+                with open("data/last_daily.csv", "w", newline="") as file:
+                    writer = csv.writer(file)
+                    writer.writerows(rows)
+                await ctx.send("They were successfully transferred **1.000€** to their account")
+        else:
+            self.add_balance(ctx.author, 1000)
+            with open("data/last_daily.csv", "a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow([user_id, now.isoformat()])
+            await ctx.send("They were successfully transferred **1.000€** to their account")
 
     def get_balance(self, user):
-        with open("balances.csv", "r", newline="") as file:
+        with open("data/balances.csv", "r", newline="") as file:
             reader = csv.reader(file)
             for row in reader:
                 if row[0] == str(user.id):
@@ -228,44 +212,48 @@ class Highlow(commands.Cog):
 
     def add_balance(self, user, amount):
         balances = []
-        with open("balances.csv", "r", newline="") as file:
+        with open("data/balances.csv", "r", newline="") as file:
             reader = csv.reader(file)
             for row in reader:
                 if row[0] == str(user.id):
                     balances.append([user.id, int(row[1]) + amount])
                 else:
                     balances.append(row)
-        with open("balances.csv", "w", newline="") as file:
+        with open("data/balances.csv", "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerows(balances)
 
     def subtract_balance(self, user, amount):
         balances = []
-        with open("balances.csv", "r", newline="") as file:
+        with open("data/balances.csv", "r", newline="") as file:
             reader = csv.reader(file)
             for row in reader:
                 if row[0] == str(user.id):
                     balances.append([user.id, int(row[1]) - amount])
                 else:
                     balances.append(row)
-        with open("balances.csv", "w", newline="") as file:
+        with open("data/balances.csv", "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerows(balances)
 
     def save_data(self):
         data = []
-        with open("balances.csv", "r", newline="") as file:
+        with open("data/balances.csv", "r", newline="") as file:
             reader = csv.reader(file)
             for row in reader:
                 if row[0] != "id":
                     data.append(row)
-        for user in self.bot.get_all_members():
-            balance = self.get_balance(user)
-            if [str(user.id), balance] not in data:
-                data.append([str(user.id), balance])
-        with open("balances.csv", "w", newline="") as file:
+
+            # Add missing members to the data list
+            for member in self.bot.get_all_members():
+                if not any(row[0] == str(member.id) for row in data):
+                    data.append([str(member.id), 250])
+
+        with open("data/balances.csv", "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerows([["id", "balance"]] + data)
+
+
 
 async def setup(bot):
     await bot.add_cog(Highlow(bot))
