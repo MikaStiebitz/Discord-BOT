@@ -1,19 +1,35 @@
 import os
 import discord
-from dotenv import load_dotenv
-import wavelink
-from discord.ext.commands import Bot
+from config import Auth
+from discord.ext import commands
+from modules import BankFunctions, ItemsFunctions, PrefixFunctions
 
-class Bot(Bot):
+class Bot(commands.Bot):
     def __init__(self) -> None:
         super().__init__(
-            command_prefix="!",
+            command_prefix=self.get_guild_prefix,
             intents=discord.Intents.all(),
             case_insensitive=True)
-        load_dotenv()
-
+        
+    async def get_guild_prefix(self, bot, message) -> str:
+        guild_id = message.guild.id
+        await PrefixFunctions.add_prefix(guild_id)
+        prefix = await PrefixFunctions.get_prefix(guild_id)
+        return prefix
+    
     async def on_ready(self):
+        await super().change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Try !ping'))
         print(f"Logged in as {self.user}")
+        await self.tree.sync()
+
+        await ItemsFunctions.DB.connect()
+        if not ItemsFunctions.DB.is_connected:
+            raise RuntimeError("Database access denied")
+
+        await BankFunctions.create_table()
+        await ItemsFunctions.create_table()
+        await PrefixFunctions.create_table()
+        print("Database loaded")
 
     async def setup_hook(self) -> None:
         print("Loading commands...")
@@ -24,6 +40,13 @@ class Bot(Bot):
                 except discord.ext.commands.errors.ExtensionAlreadyLoaded:
                     pass
                 print(f"{filename[:-3]} command loaded")
-                
+
+    async def on_guild_remove(self, guild):
+        await PrefixFunctions.delete_prefix(guild.id)
+
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send("Command not found.")
+
     def run(self) -> None:
-        super().run(os.getenv("BOT_TOKEN"))
+        super().run(Auth.TOKEN)

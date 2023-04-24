@@ -2,8 +2,8 @@ import asyncio
 import random
 import discord
 from discord.ext import commands
-import yaml
-
+import typing
+import csv
 
 class TicTacToe:
     # Emotes Section
@@ -100,10 +100,63 @@ class TicTacToeBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def get_balance(self, user):
+        with open("data/balances.csv", "r", newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] == str(user.id):
+                    return int(row[1])
+        self.add_balance(user, 250)
+        return 250
+
+    def add_balance(self, user, amount):
+        balances = []
+        with open("data/balances.csv", "r", newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] == str(user.id):
+                    balances.append([user.id, int(row[1]) + amount])
+                else:
+                    balances.append(row)
+        with open("data/balances.csv", "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerows(balances)
+
+    def subtract_balance(self, user, amount):
+        balances = []
+        with open("data/balances.csv", "r", newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] == str(user.id):
+                    balances.append([user.id, int(row[1]) - amount])
+                else:
+                    balances.append(row)
+        with open("data/balances.csv", "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerows(balances)
+
+    def save_data(self):
+        data = []
+        with open("data/balances.csv", "r", newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] != "id":
+                    data.append(row)
+
+            # Add missing members to the data list
+            for member in self.bot.get_all_members():
+                if not any(row[0] == str(member.id) for row in data):
+                    data.append([str(member.id), 250])
+
+        with open("data/balances.csv", "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerows([["id", "balance"]] + data)
+
     @commands.command(usage='[Member]')
-    async def ttt(self, ctx, member: discord.Member):
+    async def ttt(self, ctx, member: discord.Member, bet: typing.Optional[int] = None):
         """A tic tac toe command with reactions. When you will use your move the reaction will be removed.
         Invite your friend to play.."""
+
         try:
             # Exceptions
             if member.bot:
@@ -112,8 +165,19 @@ class TicTacToeBot(commands.Cog):
             if member == ctx.author:
                 await ctx.send("You can't play with yourself.")
                 return
-
-            message = await ctx.send(f"{member.mention} {ctx.author} wants to play 'Tic Tac Toe' with You. Accept/Deny by reacting on below buttons.")
+            
+            if bet:
+                self.save_data()
+                if bet > self.get_balance(ctx.author):
+                    await ctx.send("Not enough Money on your account :C")
+                    return             
+                if bet > self.get_balance(member):
+                    await ctx.send(f"{member.mention} has not enough Money on his account :C")
+                    return     
+            if bet:
+                message = await ctx.send(f"{member.mention} {ctx.author} wants to play 'Tic Tac Toe' with You. Accept/Deny by reacting on below buttons. Bet Pool: {bet}€")
+            else:
+                message = await ctx.send(f"{member.mention} {ctx.author} wants to play 'Tic Tac Toe' with You. Accept/Deny by reacting on below buttons.")
 
             for r in ('\N{WHITE HEAVY CHECK MARK}', '\N{CROSS MARK}'):
                 await message.add_reaction(r)
@@ -180,11 +244,14 @@ class TicTacToeBot(commands.Cog):
                     return user.id == move_of.id and initial_embed.id == reaction_.message.id
 
                 # Wait for Reaction
-                try:
-                    reaction = await self.bot.wait_for('reaction_add', check=check, timeout=30)
-                except asyncio.TimeoutError:
-                    await ctx.send('Timed Out..{} failed to use moves.'.format(move_of.mention))
-                    return
+                if bet:
+                    reaction = await self.bot.wait_for('reaction_add', check=check)
+                else:
+                    try:
+                        reaction = await self.bot.wait_for('reaction_add', check=check, timeout=60)
+                    except asyncio.TimeoutError:
+                        await ctx.send('Timed Out..{} failed to use moves.'.format(move_of.mention))
+                        return
 
                 # Converted Emoji Object to '<:UpLeftArrow:710733351991902258>'
                 str_reaction = str(reaction[0])
@@ -222,9 +289,19 @@ class TicTacToeBot(commands.Cog):
                         player1, player2, data, move_of, final=True)
                     await initial_embed.edit(embed=new_embed)
                     if winner == 1:
-                        await ctx.send(f'{player1.mention} is Winner.')
+                        if bet:
+                            self.add_balance(player1, bet*2)
+                            self.subtract_balance(player2, bet)
+                            await ctx.send(f'{player1.mention} is Winner and Won {bet*2}€')
+                        else:
+                            await ctx.send(f'{player1.mention} is Winner.')
                     else:
-                        await ctx.send(f'{player2.mention} is Winner.')
+                        if bet:
+                            self.add_balance(player2, bet*2)
+                            self.subtract_balance(player1, bet)
+                            await ctx.send(f'{player2.mention} is Winner and Won {bet*2}€')
+                        else:
+                            await ctx.send(f'{player2.mention} is Winner.')
                     await initial_embed.clear_reactions()
                     return
         except discord.NotFound:
