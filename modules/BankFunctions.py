@@ -75,7 +75,7 @@ async def get_bank_data(user: discord.Member) -> Optional[Any]:
     return users
 
 
-async def update_bank(user: discord.Member, amount: Union[float, int] = 0, mode: str = "wallet") -> Optional[Any]:
+async def update_bank(user: discord.Member, amount: Union[float, int] = 0) -> Optional[Any]:
     data = await DB.execute(
         f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
     if data is not None:

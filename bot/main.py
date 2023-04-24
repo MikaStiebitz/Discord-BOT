@@ -2,7 +2,7 @@ import os
 import discord
 from config import Auth
 from discord.ext import commands
-from modules import BankFunctions, ItemsFunctions, PrefixFunctions
+from modules import BankFunctions, ItemsFunctions, PrefixFunctions, AutoChannelFunctions
 
 class Bot(commands.Bot):
     def __init__(self) -> None:
@@ -29,6 +29,7 @@ class Bot(commands.Bot):
         await BankFunctions.create_table()
         await ItemsFunctions.create_table()
         await PrefixFunctions.create_table()
+        await AutoChannelFunctions.create_table()
         print("Database loaded")
 
     async def setup_hook(self) -> None:
