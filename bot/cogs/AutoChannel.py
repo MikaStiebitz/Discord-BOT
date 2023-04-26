@@ -37,7 +37,7 @@ class VoiceChannelCog(commands.Cog):
                     return len(new_channel.members) == 0
 
                 try:
-                    await self.bot.wait_for("voice_state_update", timeout=300, check=check)
+                    await self.bot.wait_for("voice_state_update", check=check)
                 except TimeoutError:
                     pass
 

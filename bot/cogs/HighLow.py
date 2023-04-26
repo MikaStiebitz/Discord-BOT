@@ -5,14 +5,16 @@ import random
 import datetime
 import typing
 from modules.BankFunctions import *
+from modules.PrefixFunctions import *
 
 class Highlow(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.games = {}
 
-    @commands.command()
+    @commands.hybrid_command(name="highlow", description="Guess if Higher or Lower")
     async def highlow(self, ctx, bet: int, choice: typing.Optional[str] = None):
+        prefix = await get_prefix(ctx.message.guild.id)
         game = self.games.get(ctx.author.id)
         user = ctx.author
         money = await get_bank_data(user)
@@ -39,7 +41,7 @@ class Highlow(commands.Cog):
                 elif choice.lower() == "high":
                     await self.high(ctx)
             else:
-                await ctx.send("Guess if number is high or low. **!low** or **!high**")
+                await ctx.send(f"Guess if number is high or low. **{prefix}low** or **{prefix}high**")
         else:
             await ctx.send("You are already playing Highlow")
 
@@ -74,6 +76,7 @@ class Highlow(commands.Cog):
             await self.lose(ctx, game)
 
     async def win(self, ctx, game):
+        prefix = await get_prefix(ctx.message.guild.id)
         last_num = game["last_number"]
         game["multiplier"] = game["multiplier"] * 2
         val_multiplier = game["multiplier"]
@@ -81,10 +84,10 @@ class Highlow(commands.Cog):
         user_name = ctx.author.display_name
 
         embed = discord.Embed(title=f"Highlow - User: {user_name}", color=3274303)
-        embed.add_field(name="Correct!", value=f"Number was **{last_num}**\n**Continue**\nUse !low or !high", inline=True)
+        embed.add_field(name="Correct!", value=f"Number was **{last_num}**\n**Continue**\nUse {prefix}low or {prefix}high", inline=True)
         embed.add_field(name="Multiplier", value=f"**{val_multiplier}x**", inline=True)
 
-        embed.set_footer(text="Use !stop to stop the Game.")
+        embed.set_footer(text=f"Use {prefix}stop to stop the Game.")
         await ctx.send(embed=embed)
 
     async def lose(self, ctx, game):

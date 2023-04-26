@@ -54,9 +54,7 @@ class Database:
         cursor.close()
         return data
 
-
 DB = Database()
-
 
 async def create_table() -> None:
     await DB.execute(f"CREATE TABLE IF NOT EXISTS `{TABLE_NAME}`(userID BIGINT, wallet BIGINT DEFAULT 0)")

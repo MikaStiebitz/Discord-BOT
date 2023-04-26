@@ -23,6 +23,7 @@ class Bot(commands.Bot):
         await self.tree.sync()
 
         await ItemsFunctions.DB.connect()
+        print("Database connected")
         if not ItemsFunctions.DB.is_connected:
             raise RuntimeError("Database access denied")
 
