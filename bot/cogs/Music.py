@@ -5,13 +5,42 @@ import re
 import asyncio
 from urllib.parse import urlparse, parse_qs
 
+class SimpleView(discord.ui.View):
+    def __init__(self, vc, message):
+        super().__init__()
+        self.vc = vc
+        self.is_playing = True
+        self.message = message
+        self.add_item(discord.ui.Button(label="Click me!", style=discord.ButtonStyle.primary, custom_id="my_button"))
+
+    @discord.ui.button(emoji="⏯️", row=0, style=discord.ButtonStyle.gray)
+    async def pause(self, button: discord.ui.Button, interaction: discord.Interaction):
+        print(self.is_playing)
+        if self.is_playing:
+            print("is playing")
+            await self.vc.pause()
+            self.is_playing = False
+            return
+        else:
+            print("is not playing")
+            await self.vc.resume()
+            self.is_playing = True
+            return
+
+
+
+    @discord.ui.button(emoji="⏹️", row=1,
+                       style=discord.ButtonStyle.danger)
+    async def stop(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await self.vc.disconnect()
+        return
+
 
 class MusicCog(commands.Cog):
-
     def __init__(self, bot):
         self.bot = bot
         self.wavelink_nodes = [
-            wavelink.Node(uri='http://narco.buses.rocks:2269', password='glasshost1984')
+            wavelink.Node(uri="http://localhost:2333", password='youshallnotpass')
         ]
         self.bot.loop.create_task(self.connect_nodes())
 
@@ -61,35 +90,16 @@ class MusicCog(commands.Cog):
         
         await vc.play(track)
 
-        message = await ctx.channel.send(f"Now playing: {track.title} ({track.author})")
-        await message.add_reaction("⏸️")
-        await message.add_reaction("▶️")
-        await message.add_reaction("⏹️")
+        message = await ctx.send(f"Now playing: {track.title} ({track.author})")
 
-        def check(reaction, user):
-            return str(reaction.emoji) in ["⏸️", "▶️", "⏹️"] and user == ctx.author
-
-        while vc.is_playing():
-            print("playing")
-            reaction, user = await self.bot.wait_for("reaction_add", check=check)
+        view = SimpleView(vc, message, )
+        message = await ctx.send(view=view)
+        await view.wait()
 
 
-            await message.remove_reaction(reaction, user)
-            print(str(reaction.emoji))
-            if str(reaction.emoji) == "⏸️":
-                print("pause")
-                await vc.pause()
-            elif str(reaction.emoji) == "▶️":
-                print("play")
-                await vc.resume()
-            elif str(reaction.emoji) == "⏹️":
-                await vc.stop()
-                await message.edit(content="Song stopped.")
-
-        await ctx.send("Playback ended.")
-        await vc.disconnect()
-
-
+        if not vc.is_playing():
+            await ctx.send("Playback ended.")
+            await vc.disconnect()
 
     @commands.command()
     async def disconnect(self, ctx: commands.Context) -> None:

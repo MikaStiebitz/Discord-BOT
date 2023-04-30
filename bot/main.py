@@ -1,7 +1,7 @@
+from discord.ext import commands
 import os
 import discord
 from config import Auth
-from discord.ext import commands
 from modules import BankFunctions, ItemsFunctions, PrefixFunctions, AutoChannelFunctions
 
 class Bot(commands.Bot):
@@ -12,9 +12,12 @@ class Bot(commands.Bot):
             case_insensitive=True)
         
     async def get_guild_prefix(self, bot, message) -> str:
-        guild_id = message.guild.id
-        await PrefixFunctions.add_prefix(guild_id)
-        prefix = await PrefixFunctions.get_prefix(guild_id)
+        try:
+            guild_id = message.guild.id
+            await PrefixFunctions.add_prefix(guild_id)
+            prefix = await PrefixFunctions.get_prefix(guild_id)
+        except Exception:
+            prefix = "!"
         return prefix
     
     async def on_ready(self):

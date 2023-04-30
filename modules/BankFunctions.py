@@ -60,7 +60,7 @@ async def create_table() -> None:
     await DB.execute(f"CREATE TABLE IF NOT EXISTS `{TABLE_NAME}`(userID BIGINT, wallet BIGINT DEFAULT 0)")
 
 
-async def open_bank(user: discord.Member) -> None:
+async def open_bank(user) -> None:
     data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
 
     if data is None:
@@ -68,12 +68,12 @@ async def open_bank(user: discord.Member) -> None:
         await DB.execute(f"UPDATE `{TABLE_NAME}` SET `wallet` = ? WHERE userID = ?", (250, user.id,))
 
 
-async def get_bank_data(user: discord.Member) -> Optional[Any]:
+async def get_bank_data(user) -> Optional[Any]:
     users = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
     return users
 
 
-async def update_bank(user: discord.Member, amount: Union[float, int] = 0) -> Optional[Any]:
+async def update_bank(user, amount: Union[float, int] = 0) -> Optional[Any]:
     data = await DB.execute(
         f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
     if data is not None:
@@ -83,7 +83,7 @@ async def update_bank(user: discord.Member, amount: Union[float, int] = 0) -> Op
     return users
 
 
-async def reset_bank(user: discord.Member) -> None:
+async def reset_bank(user) -> None:
     await DB.execute(f"DELETE FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,))
     await open_bank(user)
 

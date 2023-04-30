@@ -32,7 +32,7 @@ async def create_table() -> None:
             pass
 
 
-async def open_inv(user: discord.Member) -> None:
+async def open_inv(user) -> None:
     data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
 
     if data is None:
@@ -43,12 +43,12 @@ async def open_inv(user: discord.Member) -> None:
             await DB.execute(f"UPDATE `{TABLE_NAME}` SET `{item_name}` = ? WHERE userID = ?", (0, user.id,))
 
 
-async def get_inv_data(user: discord.Member) -> Optional[Any]:
+async def get_inv_data(user) -> Optional[Any]:
     users = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
     return users
 
 
-async def update_inv(user: discord.Member, amount: Union[float, int], mode: str) -> Optional[Any]:
+async def update_inv(user, amount: Union[float, int], mode: str) -> Optional[Any]:
     data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
 
     if data is not None:
@@ -58,7 +58,7 @@ async def update_inv(user: discord.Member, amount: Union[float, int], mode: str)
     return users
 
 
-async def change_inv(user: discord.Member, amount: Union[float, int, None], mode: str) -> Optional[Any]:
+async def change_inv(user, amount: Union[float, int, None], mode: str) -> Optional[Any]:
     data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
 
     if data is not None:
