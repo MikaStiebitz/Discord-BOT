@@ -21,8 +21,12 @@ async def add_prefix(guild_id: int) -> None:
         await DB.execute(f"UPDATE `{TABLE_NAME}` SET `prefix` = ? WHERE guildID = ?", ("!", guild_id,))
 
 async def get_prefix(guild_id: int) -> str:
-    result = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE guildID = ?", (guild_id,), fetch="one")
-    return result[1] if result is not None else "!"
+    try:
+        result = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE guildID = ?", (guild_id,), fetch="one")
+        return result[1] if result is not None else "!"
+    except:
+        return "!"
+    
 
 async def update_prefix(guild_id: int, new_prefix: str) -> None:
     await DB.execute(f"UPDATE `{TABLE_NAME}` SET prefix = ? WHERE guildID = ?", (new_prefix, guild_id,))

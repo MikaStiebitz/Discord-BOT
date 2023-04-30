@@ -7,3 +7,6 @@ class Auth:
     TOKEN = getenv("TOKEN")
     COMMAND_PREFIX = getenv("COMMAND_PREFIX")
     FILENAME = getenv("FILENAME")
+    LAVALINK_HOST = getenv("LAVALINK_HOST")
+    LAVALINK_PORT = getenv("LAVALINK_PORT")
+    LAVALINK_PASSWORD = getenv("LAVALINK_PASSWORD")
