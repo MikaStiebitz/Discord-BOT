@@ -27,7 +27,7 @@ class VoiceChannelCog(commands.Cog):
                     new_channel = await watched_channel.category.create_voice_channel(
                         name=new_channel_name,
                         user_limit=watched_channel.user_limit,
-                        position=watched_channel.position+1,
+                        position=watched_channel.position,
                         reason=f"{member.name} created a new channel"
                     )
 

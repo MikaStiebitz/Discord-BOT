@@ -183,11 +183,4 @@ async def setup(client):
 
 
 
-                discord.ui.select(
-                placeholder="Choose a Song!",
-                min_values=1,
-                max_values=1,
-                options=[
-                    discord.SelectOption(label="Hi")
-                ]
-            )
+    

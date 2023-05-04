@@ -8,11 +8,10 @@ from discord.ui import Select, View
 import asyncio
 
 class MusicButtonView(discord.ui.View):
-    def __init__(self, vc, message):
+    def __init__(self, vc):
         super().__init__()
         self.vc = vc
         self.is_playing = True
-        self.message = message
 
     @discord.ui.button(emoji="⏮️", row=0, style=discord.ButtonStyle.gray)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -64,6 +63,7 @@ class MusicButtonView(discord.ui.View):
 class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.now_playing_message = None
         self.index = None
         self.seen_titles = set()
         self.unique_tracks = []
@@ -79,16 +79,26 @@ class MusicCog(commands.Cog):
             await wavelink.NodePool.connect(client=self.bot, nodes=self.wavelink_nodes)
         except Exception as e:
             print(e)
+
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: TrackEventPayload):
         try:
             track = payload.player.queue.get()
             await payload.player.play(track)
+            if self.now_playing_message:
+                await self.now_playing_message.delete()
+                message = await self.ctx.send(f"Now playing: {track.title} ({track.author})", view=MusicButtonView(payload.player))
+                self.now_playing_message = message
         except:
+            print("end")
+
             await payload.player.disconnect()
+            if self.now_playing_message:
+                await self.now_playing_message.delete()
 
     @commands.hybrid_command()
     async def play(self, ctx: commands.Context, *, music: str):
+        self.ctx = ctx
         if not ctx.voice_client:
             vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         else:
@@ -157,9 +167,8 @@ class MusicCog(commands.Cog):
 
         else:
             await vc.play(track)
-            message = await ctx.send(f"Now playing: {track.title} ({track.author})")
-            view = MusicButtonView(vc, message)
-            message = await ctx.send(view=view)
+            message = await ctx.send(f"Now playing: {track.title} ({track.author})", view=MusicButtonView(vc))
+            self.now_playing_message = message
 
     @commands.command()
     async def stopMusic(self, ctx: commands.Context):
