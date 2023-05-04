@@ -107,7 +107,7 @@ class Highlow(commands.Cog):
         del self.games[game["player"].id]
 
     @commands.command()
-    async def stop(self, ctx):
+    async def stopGame(self, ctx):
         game = self.games.get(ctx.author.id)
         user = ctx.author
         balance = await get_bank_data(user)

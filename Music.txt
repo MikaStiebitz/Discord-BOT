@@ -3,9 +3,7 @@ import discord
 import wavelink
 from config import Auth
 from discord.ext import commands
-from wavelink.player import TrackEventPayload
-from discord.ui import Select, View
-import asyncio
+
 
 class MusicButtonView(discord.ui.View):
     def __init__(self, vc, message):
@@ -31,8 +29,6 @@ class MusicButtonView(discord.ui.View):
 
     @discord.ui.button(emoji="⏭️", row=0, style=discord.ButtonStyle.gray)
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
-        track = self.vc.player.queue.get()
-        await self.vc.player.play(track)
         await interaction.response.defer()
 
     @discord.ui.button(emoji="🔇", row=1, style=discord.ButtonStyle.gray)
@@ -61,31 +57,31 @@ class MusicButtonView(discord.ui.View):
     async def repeat(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
 
+
 class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.index = None
-        self.seen_titles = set()
-        self.unique_tracks = []
+        self.queue = wavelink.Queue()
         self.wavelink_nodes = [
             wavelink.Node(uri=f"http://{Auth.LAVALINK_HOST}:{Auth.LAVALINK_PORT}", password=f"{Auth.LAVALINK_PASSWORD}")
         ]
         self.bot.loop.create_task(self.connect_nodes())
-        self.queue = wavelink.Queue()
 
     async def connect_nodes(self):
-        try:
-            await self.bot.wait_until_ready()
-            await wavelink.NodePool.connect(client=self.bot, nodes=self.wavelink_nodes)
-        except Exception as e:
-            print(e)
+        await self.bot.wait_until_ready()
+        await wavelink.NodePool.connect(client=self.bot, nodes=self.wavelink_nodes)
+
     @commands.Cog.listener()
-    async def on_wavelink_track_end(self, payload: TrackEventPayload):
-        try:
-            track = payload.player.queue.get()
-            await payload.player.play(track)
-        except:
-            await payload.player.disconnect()
+    async def on_wavelink_track_end(self, player: wavelink.Player, track: wavelink.tracks.Playlist):
+        ctx = player.ctx
+        vc: player = ctx.voice_client
+        if vc.loop:
+            return await vc.play(track)
+            
+        next_song = vc.queue.get()
+        await vc.play(next_song)
+        await ctx.send(f"Now playing {next_song.title}")
+
 
     @commands.hybrid_command()
     async def play(self, ctx: commands.Context, *, music: str):
@@ -101,60 +97,36 @@ class MusicCog(commands.Cog):
             if not tracks:
                 await ctx.send("No search results found.")
                 return
-            
-            
-            for track in tracks:
-                if track.title in self.seen_titles:
-                    continue
-                    
-                self.unique_tracks.append(track)
-                
-                self.seen_titles.add(track.title)
 
             embed = discord.Embed(title="Search Results", color=discord.Color.blurple())
-            for i, track in enumerate(self.unique_tracks[:5]):
+            for i, track in enumerate(tracks[:5]):
                 embed.add_field(name=f"{i+1}. {track.title}", value=track.author, inline=False)
 
-            options = [discord.SelectOption(label=track.title) for track in self.unique_tracks[:5]]
+            message = await ctx.send(embed=embed)
 
-            select = Select(
-                placeholder="Choose a Song!",
-                options=options
-            )
-            
-            async def my_callback(interaction):
-                self.index = select.values[0]
-                await interaction.response.defer()
-                event.set()
+            reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+            for reaction in reactions[:len(tracks)]:
+                await message.add_reaction(reaction)
 
-            viewSel = View()
-            viewSel.add_item(select)
+            def check(reaction, user):
+                print(user == ctx.author and str(reaction.emoji) in reactions[:len(tracks)])
+                return user == ctx.author and str(reaction.emoji) in reactions
 
-            select.callback = my_callback
-            message = await ctx.send(embed=embed, view=viewSel)
-
-            event = asyncio.Event()
-            await event.wait()
-
-            for i, item in enumerate(self.unique_tracks[:5]):
-                if item.title == self.index:
-                    track = self.unique_tracks[i]
-                    await message.delete()
-                break
+            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=lambda r, u: r.message.id == message.id and u.id == ctx.author.id and str(r.emoji) in reactions)
+            track = tracks[reactions.index(str(reaction.emoji))]
+            await message.delete()
 
         if vc.is_playing():
             print("queue")
-            embed = discord.Embed(
+
+            await vc.queue.put(item=track)
+
+            await ctx.send(embed=discord.Embed(
                 title=track.title,
                 url=track.uri,
-                color=discord.Color.blurple())
-            embed.set_footer(
-                text=f"Requested by {ctx.author}", icon_url=ctx.author.avatar.url)
-            await ctx.reply(embed=embed)
-
-            await vc.queue.put_wait(track)
-
-
+                author=ctx.author,
+                description=f"Queued {track.title} in {vc.channel}"
+            ))
         else:
             await vc.play(track)
             message = await ctx.send(f"Now playing: {track.title} ({track.author})")
@@ -208,3 +180,14 @@ class MusicCog(commands.Cog):
 
 async def setup(client):
     await client.add_cog(MusicCog(client))
+
+
+
+                discord.ui.select(
+                placeholder="Choose a Song!",
+                min_values=1,
+                max_values=1,
+                options=[
+                    discord.SelectOption(label="Hi")
+                ]
+            )

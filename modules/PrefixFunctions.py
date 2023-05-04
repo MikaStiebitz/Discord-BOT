@@ -14,12 +14,14 @@ async def create_table() -> None:
     await DB.execute(f"CREATE TABLE IF NOT EXISTS `{TABLE_NAME}`(guildID BIGINT, prefix STR DEFAULT '!')")
 
 async def add_prefix(guild_id: int) -> None:
-    data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE guildID = ?", (guild_id,), fetch="one")
+    try:
+        data = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE guildID = ?", (guild_id,), fetch="one")
 
-    if data is None:
-        await DB.execute(f"INSERT INTO `{TABLE_NAME}`(guildID) VALUES(?)", (guild_id,))
-        await DB.execute(f"UPDATE `{TABLE_NAME}` SET `prefix` = ? WHERE guildID = ?", ("!", guild_id,))
-
+        if data is None:
+            await DB.execute(f"INSERT INTO `{TABLE_NAME}`(guildID) VALUES(?)", (guild_id,))
+            await DB.execute(f"UPDATE `{TABLE_NAME}` SET `prefix` = ? WHERE guildID = ?", ("!", guild_id,))
+    except:
+        pass
 async def get_prefix(guild_id: int) -> str:
     try:
         result = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE guildID = ?", (guild_id,), fetch="one")
