@@ -8,22 +8,14 @@ from discord.ui import Select, View
 import asyncio
 
 class MusicButtonView(discord.ui.View):
-    def __init__(self, vc, history, prevent_skip):
+    def __init__(self, vc):
         super().__init__()
         self.vc = vc
-        self.history = history
-        self.prevent_skip = prevent_skip
         self.is_playing = True
+
 
     @discord.ui.button(emoji="⏮️", row=0, style=discord.ButtonStyle.gray)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.vc.current == self.history[-1]:
-            self.history.pop()
-
-        last_song = self.history.pop()
-        self.prevent_skip = True
-        
-        await self.vc.play(last_song)
         
         await interaction.response.defer()
 
@@ -41,16 +33,12 @@ class MusicButtonView(discord.ui.View):
     @discord.ui.button(emoji="⏭️", row=0, style=discord.ButtonStyle.gray)
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vc.queue.is_empty:
-            await interaction.response.send_message("There are no more tracks!")
+            print("empty")
             return 
         
-        self.clear_items()
-        await interaction.response.edit_message(view=self)
-
         next_song = self.vc.queue.get()
         await self.vc.play(next_song)
-        await interaction.followup.send(f"Now playing: {next_song.title} ({next_song.author})", view=MusicButtonView(self.vc, self.history, self.prevent_skip))
-
+        await interaction.response.defer()
 
     @discord.ui.button(emoji="🔇", row=1, style=discord.ButtonStyle.gray)
     async def mute(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -59,17 +47,16 @@ class MusicButtonView(discord.ui.View):
 
     @discord.ui.button(emoji="🔉", row=1, style=discord.ButtonStyle.gray)
     async def lower(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.vc.set_volume(self.vc.volume - 10)
+        await self.vc.set_volume(self.vc.volume - 25)
         await interaction.response.defer()
 
     @discord.ui.button(emoji="🔊", row=1, style=discord.ButtonStyle.gray)
     async def higher(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.vc.set_volume(self.vc.volume + 10)
+        await self.vc.set_volume(self.vc.volume + 25)
         await interaction.response.defer()
 
     @discord.ui.button(emoji="🔀", row=2, style=discord.ButtonStyle.gray)
     async def shuffle(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.vc.queue.shuffle()
         await interaction.response.defer()
 
     @discord.ui.button(emoji="⏹️", row=2,
@@ -80,11 +67,8 @@ class MusicButtonView(discord.ui.View):
 
     @discord.ui.button(emoji="🔁", row=2, style=discord.ButtonStyle.gray)
     async def repeat(self, interaction: discord.Interaction, button: discord.ui.Button):
-        
-        self.vc.queue.loop = True
+        #
         await interaction.response.defer()
-
-
 
 class MusicCog(commands.Cog):
     
@@ -95,7 +79,6 @@ class MusicCog(commands.Cog):
         self.history = list()
         self.seen_titles = set()
         self.unique_tracks = []
-        self.prevent_skip = False
         self.wavelink_nodes = [
             wavelink.Node(uri=f"http://{Auth.LAVALINK_HOST}:{Auth.LAVALINK_PORT}", password=f"{Auth.LAVALINK_PASSWORD}")
         ]
@@ -109,11 +92,28 @@ class MusicCog(commands.Cog):
         except Exception as e:
             print(e)
 
-
-        
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, payload: TrackEventPayload):
+        try:
+            if not payload.player.queue.is_empty:
+                tracks = payload.player.queue.get()
+                await payload.player.play(tracks)
+                if self.now_playing_message:
+                    await self.now_playing_message.delete()
+                    message = await self.ctx.send(f"Now playing: {tracks.title} ({tracks.author})", view=MusicButtonView(payload.player))
+                    self.now_playing_message = message
+            else:
+                await asyncio.sleep(10)
+                if payload.player.queue.is_empty and not payload.player.is_playing():
+                    await payload.player.disconnect()
+                    if self.now_playing_message:
+                        await self.now_playing_message.delete()
+        except:
+            pass
+         
 
     @commands.hybrid_command()
-    async def play(self, ctx: commands.Context, *, music: str, nr: int = None):
+    async def play(self, ctx: commands.Context, *, music: str):
         
         if not ctx.voice_client:
             vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
@@ -121,61 +121,52 @@ class MusicCog(commands.Cog):
             vc: wavelink.Player = ctx.voice_client
 
         if re.match(r"^(http(s)?://)?((w){3}.)?youtu(be|.be)?(\.com)?/.+", music):
-            print("link")
-            print(music)
-            track = await wavelink.YouTubeTrack.search(music)
-            print(track)
+            track = await wavelink.YouTubeTrack.search(music, return_first=True)
         else:
+            tracks = await wavelink.YouTubeTrack.search(music)
+            if not tracks:
+                await ctx.send("No search results found.")
+                return
             
-                tracks = await wavelink.YouTubeTrack.search(music)
-                
-                if not tracks:
-                    await ctx.send("No search results found.")
-                    return
-                
-                self.unique_tracks.clear()
-                self.seen_titles.clear()
-                for track in tracks:
-                    if track.title in self.seen_titles:
-                        continue
-                        
-                    self.unique_tracks.append(track)
+            self.unique_tracks.clear()
+            for track in tracks:
+                if track.title in self.seen_titles:
+                    continue
                     
-                    self.seen_titles.add(track.title)
-                if not nr:
-                    embed = discord.Embed(title="Search Results", color=discord.Color.blurple())
-                    for i, track in enumerate(self.unique_tracks[:5]):
-                        embed.add_field(name=f"{i+1}. {track.title}", value=track.author, inline=False)
+                self.unique_tracks.append(track)
+                
+                self.seen_titles.add(track.title)
 
-                    options = [discord.SelectOption(label=track.title) for track in self.unique_tracks[:5]]
+            embed = discord.Embed(title="Search Results", color=discord.Color.blurple())
+            for i, track in enumerate(self.unique_tracks[:5]):
+                embed.add_field(name=f"{i+1}. {track.title}", value=track.author, inline=False)
 
-                    select = Select(
-                        placeholder="Choose a Song!",
-                        options=options
-                    )
-                    
-                    async def my_callback(interaction):
-                        self.index = select.values[0]
-                        await interaction.response.defer()
-                        event.set()
+            options = [discord.SelectOption(label=track.title) for track in self.unique_tracks[:5]]
 
-                    viewSel = View()
-                    viewSel.add_item(select)
+            select = Select(
+                placeholder="Choose a Song!",
+                options=options
+            )
+            
+            async def my_callback(interaction):
+                self.index = select.values[0]
+                await interaction.response.defer()
+                event.set()
 
-                    select.callback = my_callback
-                    message = await ctx.send(embed=embed, view=viewSel)
+            viewSel = View()
+            viewSel.add_item(select)
 
-                    event = asyncio.Event()
-                    await event.wait()
+            select.callback = my_callback
+            message = await ctx.send(embed=embed, view=viewSel)
 
-                    for i, item in enumerate(self.unique_tracks[:5]):
-                        if item.title == self.index:
-                            track = self.unique_tracks[i]
-                            await message.delete()
-                        break
-                    print(track)
-                else:
-                    track = self.unique_tracks[nr]
+            event = asyncio.Event()
+            await event.wait()
+
+            for i, item in enumerate(self.unique_tracks[:5]):
+                if item.title == self.index:
+                    track = self.unique_tracks[i]
+                    await message.delete()
+                break
 
         if vc.is_playing():
             self.history.append(track)
@@ -192,12 +183,9 @@ class MusicCog(commands.Cog):
 
 
         else:
-            print("play")
             self.history.append(track)
-            print("1")
             await vc.play(track)
-            print("2")
-            message = await ctx.send(f"Now playing: {track.title} ({track.author})", view=MusicButtonView(vc, self.history, self.prevent_skip))
+            message = await ctx.send(f"Now playing: {track.title} ({track.author})", view=MusicButtonView(vc))
             self.now_playing_message = message
 
     @commands.hybrid_command()
@@ -219,11 +207,11 @@ class MusicCog(commands.Cog):
             await ctx.reply("There are no more tracks!")
             return 
         self.current_track = vc.queue.get()
-        self.prevent_skip = True
         await vc.play(self.current_track)
 
     @commands.hybrid_command()
     async def prev(self, ctx):
+        
         if not ctx.voice_client:
             vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         else:
@@ -232,9 +220,9 @@ class MusicCog(commands.Cog):
             await ctx.send("There are no previous songs.")
             return
         
-        if vc.current == self.history[-1]:
-            self.history.pop()
-
+        print(self.history)
+        self.history.reverse()
+        print(self.history)
         last_song = self.history.pop()
         
         await vc.play(last_song)
