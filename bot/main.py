@@ -2,7 +2,7 @@ import os
 import discord
 from config import Auth
 from discord.ext import commands
-from modules import BankFunctions, ItemsFunctions, PrefixFunctions, AutoChannelFunctions
+from modules import BankFunctions, ItemsFunctions, PrefixFunctions, AutoChannelFunctions, ReactionRoleFunctions
 
 class Bot(commands.Bot):
     def __init__(self) -> None:
@@ -27,6 +27,7 @@ class Bot(commands.Bot):
         await ItemsFunctions.create_table()
         await PrefixFunctions.create_table()
         await AutoChannelFunctions.create_table()
+        await ReactionRoleFunctions.create_table()
         print("Database loaded")
         
         await super().change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=f"/help | {len(self.guilds)} Servers"))
