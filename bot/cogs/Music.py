@@ -69,21 +69,40 @@ class MusicButtonView(discord.ui.View):
 
     @discord.ui.button(emoji="🔀", row=2, style=discord.ButtonStyle.gray)
     async def shuffle(self, interaction: discord.Interaction, button: discord.ui.Button):
+        print(self.vc.queue.get())
         self.vc.queue.shuffle()
+        print(self.vc.queue.get())
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="⏹️", row=2,
-                       style=discord.ButtonStyle.gray)
+    @discord.ui.button(emoji="⏹️", row=2, style=discord.ButtonStyle.gray)
     async def stopbtn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.vc.disconnect()
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="🔁", row=2, style=discord.ButtonStyle.gray)
-    async def repeat(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(emoji="🔁", style=discord.ButtonStyle.gray, row=2)
+    async def loop(self, interaction: discord.Interaction,  button: discord.Button):
         
-        self.vc.queue.loop = True
-        await interaction.response.defer()
+        try:
 
+            vc = self.vc
+
+            if vc.is_playing() is False: return await interaction.response.send_message("h5i")
+
+            if not hasattr(vc, "loop"):
+                setattr(vc, "loop", False)
+
+            if vc.loop == False:
+                vc.loop = True
+                return await interaction.response.send_message("hi4")
+
+            else:
+                vc.loop = False
+                await interaction.response.send_message("hi")
+                
+            await interaction.response.defer()
+
+        except Exception as error:
+            print(error)
 
 
 class MusicCog(commands.Cog):
@@ -108,23 +127,53 @@ class MusicCog(commands.Cog):
             await wavelink.NodePool.connect(client=self.bot, nodes=self.wavelink_nodes)
         except Exception as e:
             print(e)
+    
 
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, payload: TrackEventPayload):
+
+            print(payload.player.current)
+            print("Track end")
+            
+            if hasattr(self, 'last_ctx'):
+                await self.last_ctx.send("Track ended")
+
+                if not payload.player.queue.is_empty:
+                    tracks = payload.player.queue.get()
+                    
+                    await payload.player.play(tracks)
+
+
+                    if self.now_playing_message:
+                        await self.now_playing_message.delete()
+                        
+                        message = await self.last_ctx.send(f"Now playing: {tracks.title} ({tracks.author})", view=MusicButtonView(payload.player, self.history, self.prevent_skip))
+                        self.now_playing_message = message
+                else:
+                    await asyncio.sleep(10)
+                    if payload.player.queue.is_empty and not payload.player.is_playing():
+                        await payload.player.disconnect()
+                        if self.now_playing_message:
+                            await self.now_playing_message.delete()
 
         
 
     @commands.hybrid_command()
     async def play(self, ctx: commands.Context, *, music: str, nr: int = None):
+        self.last_ctx = ctx
+        if music is None:
+            return await ctx.replay("Please provide a song name or link to search for.")
         
         if not ctx.voice_client:
             vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
         else:
             vc: wavelink.Player = ctx.voice_client
+            
+        
 
         if re.match(r"^(http(s)?://)?((w){3}.)?youtu(be|.be)?(\.com)?/.+", music):
-            print("link")
-            print(music)
             track = await wavelink.YouTubeTrack.search(music)
-            print(track)
+            track = track[0]
         else:
             
                 tracks = await wavelink.YouTubeTrack.search(music)
@@ -173,7 +222,6 @@ class MusicCog(commands.Cog):
                             track = self.unique_tracks[i]
                             await message.delete()
                         break
-                    print(track)
                 else:
                     track = self.unique_tracks[nr]
 
@@ -194,9 +242,7 @@ class MusicCog(commands.Cog):
         else:
             print("play")
             self.history.append(track)
-            print("1")
             await vc.play(track)
-            print("2")
             message = await ctx.send(f"Now playing: {track.title} ({track.author})", view=MusicButtonView(vc, self.history, self.prevent_skip))
             self.now_playing_message = message
 
@@ -241,6 +287,17 @@ class MusicCog(commands.Cog):
         
         await ctx.send(f"Now playing the previous song: {last_song}")
     
+    @commands.hybrid_command()
+    async def shuffle(self, ctx):
+        if not ctx.voice_client:
+            vc: wavelink.Player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+        else:
+            vc: wavelink.Player = ctx.voice_client
+        if vc.queue.is_empty:
+            await ctx.reply("There are no more tracks!")
+            return 
+        vc.queue.shuffle()
+        await ctx.send("Queue shuffled!")
 
     @commands.command()
     async def pause(self, ctx):

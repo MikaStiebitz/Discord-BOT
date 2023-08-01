@@ -70,6 +70,7 @@ async def open_bank(user: discord.Member) -> None:
 
 async def get_bank_data(user: discord.Member) -> Optional[Any]:
     users = await DB.execute(f"SELECT * FROM `{TABLE_NAME}` WHERE userID = ?", (user.id,), fetch="one")
+    print(users)
     return users
 
 

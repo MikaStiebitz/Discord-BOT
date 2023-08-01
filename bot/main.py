@@ -18,10 +18,6 @@ class Bot(commands.Bot):
         return prefix
     
     async def on_ready(self):
-        await super().change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=f"/help | {len(self.guilds)} Servers"))
-        print(f"Logged in as {self.user}")
-        await self.tree.sync()
-
         await ItemsFunctions.DB.connect()
         print("Database connected")
         if not ItemsFunctions.DB.is_connected:
@@ -32,6 +28,12 @@ class Bot(commands.Bot):
         await PrefixFunctions.create_table()
         await AutoChannelFunctions.create_table()
         print("Database loaded")
+        
+        await super().change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=f"/help | {len(self.guilds)} Servers"))
+        print(f"Logged in as {self.user}")
+        await self.tree.sync()
+
+
 
     async def setup_hook(self) -> None:
         print("Loading commands...")

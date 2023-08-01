@@ -100,7 +100,7 @@ class Highlow(commands.Cog):
         await update_bank(user, -bet)
     
         embed = discord.Embed(title=f"Highlow - User: {user_name}", color=15471379)
-        embed.add_field(name="Incorrect!", value=f"Number was **{last_num}**\n**Money**\nYou have {balance[0]}€", inline=True)
+        embed.add_field(name="Incorrect!", value=f"Number was **{last_num}**\n**Money**\nYou have {balance[1]}€", inline=True)
         embed.add_field(name="Profit", value=f"**-{bet}**€", inline=True)
 
         await ctx.send(embed=embed)
@@ -126,7 +126,7 @@ class Highlow(commands.Cog):
         del self.games[game["player"].id]
 
         embed = discord.Embed(title=f"Highlow - User: {user_name}", color=3274303)
-        embed.add_field(name="Stopped at", value=f"**{val_multiplier}x**\n**Money**\nYou have {balance[0]}€", inline=True)
+        embed.add_field(name="Stopped at", value=f"**{val_multiplier}x**\n**Money**\nYou have {balance[1]}€", inline=True)
         embed.add_field(name="Profit", value=f"**{winnings}**€", inline=True)
 
         await ctx.send(embed=embed)
